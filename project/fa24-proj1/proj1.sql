@@ -19,49 +19,78 @@ DROP VIEW IF EXISTS q4v;
 -- Question 0
 CREATE VIEW q0(era)
 AS
-  SELECT 1 -- replace this line
+  SELECT MAX(era)
+  FROM pitching
 ;
 
 -- Question 1i
 CREATE VIEW q1i(namefirst, namelast, birthyear)
 AS
-  SELECT 1, 1, 1 -- replace this line
+  SELECT namefirst, namelast, birthyear
+  FROM people
+  WHERE weight > 300
 ;
 
 -- Question 1ii
 CREATE VIEW q1ii(namefirst, namelast, birthyear)
 AS
-  SELECT 1, 1, 1 -- replace this line
+  SELECT namefirst, namelast, birthyear
+  FROM people
+  WHERE namefirst LIKE '% %'
+  ORDER BY namefirst, namelast
 ;
 
 -- Question 1iii
 CREATE VIEW q1iii(birthyear, avgheight, count)
 AS
-  SELECT 1, 1, 1 -- replace this line
+  SELECT birthYear, AVG(height) AS avgheight, COUNT(*) AS count
+  FROM people
+  GROUP BY birthYear
+  ORDER BY birthYear
 ;
 
 -- Question 1iv
 CREATE VIEW q1iv(birthyear, avgheight, count)
 AS
-  SELECT 1, 1, 1 -- replace this line
+  SELECT *
+  FROM q1iii
+  WHERE avgheight > 70
 ;
 
 -- Question 2i
 CREATE VIEW q2i(namefirst, namelast, playerid, yearid)
 AS
-  SELECT 1, 1, 1, 1 -- replace this line
+  SELECT namefirst, namelast, people.playerid AS playerid, yearid
+  FROM people
+  JOIN HallofFame
+  ON people.playerid = HallofFame.playerid
+  WHERE inducted = 'Y'
+  ORDER BY yearid DESC, playerid
 ;
 
 -- Question 2ii
 CREATE VIEW q2ii(namefirst, namelast, playerid, schoolid, yearid)
 AS
-  SELECT 1, 1, 1, 1, 1 -- replace this line
+  SELECT namefirst, namelast, q2i.playerid AS playerid, schoolid, yearid
+  FROM q2i
+  JOIN CollegePlaying
+  ON q2i.playerid = CollegePlaying.playerid
+  WHERE schoolid IN (
+    SELECT schoolid
+    FROM schools
+    WHERE schoolState = 'CA'
+  )
+  ORDER BY yearid DESC, schoolid, playerid
 ;
 
 -- Question 2iii
 CREATE VIEW q2iii(playerid, namefirst, namelast, schoolid)
 AS
-  SELECT 1, 1, 1, 1 -- replace this line
+  SELECT q2i.playerid AS playerid, namefirst, namelast, schoolid
+  FROM q2i
+  LEFT JOIN CollegePlaying
+  ON q2i.playerid = CollegePlaying.playerid
+  ORDER BY playerid DESC, schoolid
 ;
 
 -- Question 3i
