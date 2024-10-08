@@ -4,3 +4,4 @@
 - SQL I
 - SQL II
 - Disks, Buffers, Files
+- Cost Models and Index
