@@ -5,3 +5,5 @@
 - SQL II
 - Disks, Buffers, Files
 - Cost Models and Index
+- B+ Trees
+- Index Files and their Costs

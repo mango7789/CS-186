@@ -129,7 +129,7 @@ public class BPlusTree {
 
     // Core API ////////////////////////////////////////////////////////////////
     /**
-     * Returns the value associated with `key`.
+     * Returns the value associated with key`.
      *
      *   // Insert a single value into the tree.
      *   DataBox key = new IntDataBox(42);
@@ -146,8 +146,8 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): implement
-
-        return Optional.empty();
+        LeafNode leaf = root.get(key);
+        return leaf.getKey(key);
     }
 
     /**
@@ -257,8 +257,21 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+        Optional<Pair<DataBox, Long>> pairs = root.put(key, rid);
+        if (!pairs.equals(Optional.empty())) {
+            DataBox splitNum = pairs.get().getFirst();
+            Long oldRootPage = root.getPage().getPageNum();
+            Long newRootPage = pairs.get().getSecond();
+            // Construct new key and children lists
+            List<DataBox> keyLists = new ArrayList<>();
+            keyLists.add(splitNum);
+            List<Long> pageLists = new ArrayList<>();
+            pageLists.add(oldRootPage);
+            pageLists.add(newRootPage);
 
-        return;
+            InnerNode newRoot = new InnerNode(this.metadata, bufferManager, keyLists, pageLists, lockContext);
+            updateRoot(newRoot);
+        }
     }
 
     /**
@@ -309,7 +322,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): implement
-
+        root.remove(key);
         return;
     }
 

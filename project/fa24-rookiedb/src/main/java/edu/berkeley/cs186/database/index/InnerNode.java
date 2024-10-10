@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -81,16 +82,33 @@ class InnerNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
+        InnerNode currNode = this;
 
-        return null;
+        while (true) {
+            int index = InnerNode.numLessThanEqual(key, currNode.getKeys());
+            BPlusNode nextNode = currNode.getChild(index);
+            if (nextNode instanceof LeafNode) {
+                return nextNode.get(key);
+            } else {
+                currNode = (InnerNode) nextNode;
+            }
+        }
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        assert(children.size() > 0);
+        assert(!children.isEmpty());
         // TODO(proj2): implement
-
+        InnerNode currNode = this;
+        while (!currNode.getKeys().isEmpty()) {
+            BPlusNode nextNode = currNode.getChild(0);
+            if (nextNode instanceof LeafNode) {
+                return nextNode.getLeftmostLeaf();
+            } else {
+                currNode = (InnerNode) nextNode;
+            }
+        }
         return null;
     }
 
@@ -98,8 +116,36 @@ class InnerNode extends BPlusNode {
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        int index = InnerNode.numLessThanEqual(key, this.getKeys());
+        Optional<Pair<DataBox, Long>> pairs = this.getChild(index).put(key, rid);
 
-        return Optional.empty();
+        if (!pairs.equals(Optional.empty())) {
+            int d = metadata.getOrder();
+            DataBox splitNum = pairs.get().getFirst();
+            Long pageNum = pairs.get().getSecond();
+            // Insert the new node
+            int insertIndex = InnerNode.numLessThan(splitNum, this.keys);
+            this.keys.add(insertIndex, splitNum);
+            this.children.add(insertIndex + 1, pageNum);
+            if (this.keys.size() < 2 * d + 1) {
+                sync();
+                return Optional.empty();
+            } else {
+                List<DataBox> nextKeys = new ArrayList<>(this.keys.subList(d + 1, this.keys.size()));
+                List<Long> nextChildren = new ArrayList<>(this.children.subList(d + 1, this.children.size()));
+                InnerNode newInnerNode = new InnerNode(metadata, bufferManager, nextKeys, nextChildren, treeContext);
+
+                splitNum = this.keys.get(d);
+                pageNum = newInnerNode.getPage().getPageNum();
+
+                this.keys = new ArrayList<>(this.keys.subList(0, d));
+                this.children = new ArrayList<>(this.children.subList(0, d + 1));
+                sync();
+                return Optional.of(new Pair<>(splitNum, pageNum));
+            }
+        } else {
+            return pairs;
+        }
     }
 
     // See BPlusNode.bulkLoad.
@@ -115,8 +161,8 @@ class InnerNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-
-        return;
+        LeafNode leaf = this.get(key);
+        leaf.remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
