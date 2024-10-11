@@ -201,7 +201,31 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        int maxCapacity = (int) Math.ceil(this.metadata.getOrder() * 2 * fillFactor);
+        while (data.hasNext()) {
+            Pair<DataBox, RecordId> pair = data.next();
+            DataBox currKey = pair.getFirst();
+            RecordId currRid = pair.getSecond();
+            // Now we should split the node
+            if (this.keys.size() == maxCapacity) {
+                List<DataBox> nextKeys = new ArrayList<>();
+                List<RecordId> nextRids = new ArrayList<>();
+                nextKeys.add(currKey);
+                nextRids.add(currRid);
+                LeafNode nextLeaf = new LeafNode(metadata, bufferManager, nextKeys, nextRids, rightSibling, treeContext);
+                Long nextPageNum = nextLeaf.getPage().getPageNum();
+                // Update the right sibling of current leaf node
+                this.rightSibling = Optional.of(nextPageNum);
+                sync();
+                return Optional.of(new Pair<>(currKey, nextPageNum));
+            }
+            else {
+                this.keys.add(currKey);
+                this.rids.add(currRid);
+            }
+        }
 
+        sync();
         return Optional.empty();
     }
 
@@ -252,7 +276,7 @@ class LeafNode extends BPlusNode {
 
     /** Returns the right sibling of this leaf, if it has one. */
     Optional<LeafNode> getRightSibling() {
-        if (!rightSibling.isPresent()) {
+        if (!rightSibling.isPresent() || rightSibling.get() < 0) {
             return Optional.empty();
         }
 

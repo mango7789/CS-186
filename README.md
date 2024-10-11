@@ -7,3 +7,5 @@
 - Cost Models and Index
 - B+ Trees
 - Index Files and their Costs
+- Spatial and Vector Indices
+- Buffer Management

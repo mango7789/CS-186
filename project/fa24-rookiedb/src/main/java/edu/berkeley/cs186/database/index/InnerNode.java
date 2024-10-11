@@ -153,8 +153,47 @@ class InnerNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        InnerNode currNode = this;
+        Optional<Pair<DataBox, Long>> pairs;
+        while (true) {
+            BPlusNode nextNode = currNode.getChild(currNode.getChildren().size() - 1);
+            if (nextNode instanceof LeafNode) {
+                pairs = nextNode.bulkLoad(data, fillFactor);
+                break;
+            } else {
+                currNode = (InnerNode) nextNode;
+            }
+        }
 
-        return Optional.empty();
+        if (pairs.isPresent()) {
+            int d = this.metadata.getOrder();
+            DataBox splitNum = pairs.get().getFirst();
+            Long pageNum = pairs.get().getSecond();
+            if (this.keys.size() == 2 * d) {
+                List<DataBox> newKeys = new ArrayList<>(this.keys.subList(d + 1, this.keys.size()));
+                List<Long> newChildren = new ArrayList<>(this.children.subList(d + 1, this.children.size()));
+                newKeys.add(splitNum);
+                newChildren.add(pageNum);
+                InnerNode newInnerNode = new InnerNode(metadata, bufferManager, newKeys, newChildren, treeContext);
+
+                DataBox middleNum = this.keys.get(d);
+                Long newPageNum = newInnerNode.getPage().getPageNum();
+
+                this.keys = new ArrayList<>(this.keys.subList(0, d));
+                this.children = new ArrayList<>(this.children.subList(0, d + 1));
+
+                sync();
+                return Optional.of(new Pair<>(middleNum, newPageNum));
+            } else {
+                this.keys.add(splitNum);
+                this.children.add(pageNum);
+                sync();
+                return Optional.empty();
+            }
+        }
+        else {
+            return Optional.empty();
+        }
     }
 
     // See BPlusNode.remove.
