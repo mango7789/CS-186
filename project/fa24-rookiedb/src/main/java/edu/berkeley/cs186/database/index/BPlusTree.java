@@ -300,6 +300,9 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+        if (!root.toSexp().equals("()")) {
+            throw new BPlusTreeException("The B+ Tree is not empty!");
+        }
         while (data.hasNext()) {
             Optional<Pair<DataBox, Long>> pair = root.bulkLoad(data, fillFactor);
             if (pair.isPresent()) {
