@@ -9,3 +9,5 @@
 - Index Files and their Costs
 - Spatial and Vector Indices
 - Buffer Management
+- Sorting and Hashing
+- Joins
