@@ -11,3 +11,4 @@
 - Buffer Management
 - Sorting and Hashing
 - Joins
+- Iterators and Relational Algebra

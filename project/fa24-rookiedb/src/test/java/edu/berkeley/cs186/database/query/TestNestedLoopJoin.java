@@ -243,7 +243,7 @@ public class TestNestedLoopJoin {
 
             startCountIOs();
 
-            // Constructing the the operator should incur no extra IOs
+            // Constructing the operator should incur no extra IOs
             JoinOperator joinOperator = new PNLJOperator(leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
             checkIOs(0);
