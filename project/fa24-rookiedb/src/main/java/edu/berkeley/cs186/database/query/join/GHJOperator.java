@@ -71,7 +71,21 @@ public class GHJOperator extends JoinOperator {
         // You may find the implementation in SHJOperator.java to be a good
         // starting point. You can use the static method HashFunc.hashDataBox
         // to get a hash value.
-        return;
+        int columnIndex;
+        if (left) {
+            columnIndex = getLeftColumnIndex();
+        } else {
+            columnIndex = getRightColumnIndex();
+        }
+        for (Record record : records) {
+            DataBox columnValue = record.getValue(columnIndex);
+            int hash = HashFunc.hashDataBox(columnValue, pass);
+            int partitionNum = hash % partitions.length;
+            if (partitionNum < 0) {
+                partitionNum += partitions.length;
+            }
+            partitions[partitionNum].add(record);
+        }
     }
 
     /**
@@ -112,6 +126,26 @@ public class GHJOperator extends JoinOperator {
         // You shouldn't refer to any variable starting with "left" or "right"
         // here, use the "build" and "probe" variables we set up for you.
         // Check out how SHJOperator implements this function if you feel stuck.
+        Map<DataBox, List<Record>> hashTable = new HashMap<>();
+
+        // Building stage
+        for (Record buildRecord : buildRecords) {
+            DataBox buildValue = buildRecord.getValue(buildColumnIndex);
+            if (!hashTable.containsKey(buildValue)) {
+                hashTable.put(buildValue, new ArrayList<>());
+            }
+            hashTable.get(buildValue).add(buildRecord);
+        }
+
+        // Probing stage
+        for (Record probeRecord : probeRecords) {
+            DataBox probeValue = probeRecord.getValue(probeColumnIndex);
+            if (!hashTable.containsKey(probeValue)) continue;
+            for (Record buildRecord : hashTable.get(probeValue)) {
+                Record joinRecord = buildRecord.concat(probeRecord);
+                this.joinedRecords.add(joinRecord);
+            }
+        }
     }
 
     /**
@@ -136,6 +170,14 @@ public class GHJOperator extends JoinOperator {
             // TODO(proj3_part1): implement the rest of grace hash join
             // If you meet the conditions to run the build and probe you should
             // do so immediately. Otherwise you should make a recursive call.
+            if (leftPartitions[i].getNumPages() <= this.numBuffers - 2 ||
+                rightPartitions[i].getNumPages() <= this.numBuffers - 2) {
+                this.buildAndProbe(leftPartitions[i], rightPartitions[i]);
+            }
+            else {
+                this.run(leftPartitions[i].getScanOperator(), rightPartitions[i].getScanOperator(), pass + 1);
+            }
+
         }
     }
 
@@ -149,7 +191,7 @@ public class GHJOperator extends JoinOperator {
      */
     private Partition[] createPartitions(boolean left) {
         int usableBuffers = this.numBuffers - 1;
-        Partition partitions[] = new Partition[usableBuffers];
+        Partition[] partitions = new Partition[usableBuffers];
         for (int i = 0; i < usableBuffers; i++) {
             partitions[i] = createPartition(left);
         }
@@ -203,6 +245,12 @@ public class GHJOperator extends JoinOperator {
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that
         // SHJ breaks when trying to join them but not GHJ
+        for (int i = 0; i < 160; i++) {
+            leftRecords.add(createRecord(i));
+        }
+        for (int i = 0; i < 1; i++) {
+            rightRecords.add(createRecord(i));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 
@@ -223,7 +271,13 @@ public class GHJOperator extends JoinOperator {
         ArrayList<Record> leftRecords = new ArrayList<>();
         ArrayList<Record> rightRecords = new ArrayList<>();
         // TODO(proj3_part1): populate leftRecords and rightRecords such that GHJ breaks
-
+        for (int i = 0; i < 4096; i++) {
+            leftRecords.add(createRecord(0));
+        }
+        for (int i = 0; i < 4096; i++) {
+            rightRecords.add(createRecord(0));
+        }
+        
         return new Pair<>(leftRecords, rightRecords);
     }
 }

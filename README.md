@@ -12,3 +12,4 @@
 - Sorting and Hashing
 - Joins
 - Iterators and Relational Algebra
+- Query Optimization: Plan Space
