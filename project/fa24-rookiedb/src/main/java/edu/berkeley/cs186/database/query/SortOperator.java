@@ -87,14 +87,21 @@ public class SortOperator extends QueryOperator {
      */
     public Run sortRun(Iterator<Record> records) {
         // TODO(proj3_part1): implement
-        return null;
+        // Convert the iterator to list
+        List<Record> recordList = new ArrayList<>();
+        while (records.hasNext()) {
+            recordList.add(records.next());
+        }
+        // Sort the list
+        recordList.sort(new RecordComparator());
+        // Make it as a run
+        return this.makeRun(recordList);
     }
 
     /**
      * Given a list of sorted runs, returns a new run that is the result of
      * merging the input runs. You should use a Priority Queue (java.util.PriorityQueue)
-     * to determine which record should be should be added to the output run
-     * next.
+     * to determine which record should be added to the output run next.
      *
      * You are NOT allowed to have more than runs.size() records in your
      * priority queue at a given moment. It is recommended that your Priority
@@ -108,7 +115,34 @@ public class SortOperator extends QueryOperator {
     public Run mergeSortedRuns(List<Run> runs) {
         assert (runs.size() <= this.numBuffers - 1);
         // TODO(proj3_part1): implement
-        return null;
+        List<Record> mergedRecords = new ArrayList<>();
+        List<Iterator<Record>> iterators = new ArrayList<>();
+        PriorityQueue<Pair<Record, Integer>> minRecords = new PriorityQueue<>(new RecordPairComparator());
+        // Store the first element of each run
+        for (int i = 0; i < runs.size(); i++) {
+            Iterator<Record> records = runs.get(i).iterator();
+            iterators.add(records);
+            minRecords.add(new Pair<>(records.next(), i));
+        }
+
+        while (!minRecords.isEmpty()) {
+            // Get the minimum value
+            Pair<Record, Integer> minRecord = minRecords.poll();
+            mergedRecords.add(minRecord.getFirst());
+            int index = minRecord.getSecond();
+            if (iterators.get(index).hasNext()) {
+                minRecords.add(new Pair<>(iterators.get(index).next(), index));
+            }
+            else {
+                for (Iterator<Record> iterator : iterators) {
+                    if (iterator.hasNext()) {
+                        minRecords.add(new Pair<>(iterator.next(), index));
+                    }
+                }
+            }
+        }
+
+        return this.makeRun(mergedRecords);
     }
 
     /**
@@ -133,7 +167,24 @@ public class SortOperator extends QueryOperator {
      */
     public List<Run> mergePass(List<Run> runs) {
         // TODO(proj3_part1): implement
-        return Collections.emptyList();
+        List<Run> mergedPassRuns = new ArrayList<>();
+
+        int count = 0;
+        List<Run> mergeSortGroup = new ArrayList<>();
+        for (Run run : runs) {
+            count++;
+            mergeSortGroup.add(run);
+            if (count % (this.numBuffers - 1) == 0) {
+                mergedPassRuns.add(this.mergeSortedRuns(mergeSortGroup));
+                mergeSortGroup.clear();
+            }
+        }
+
+        if (!mergeSortGroup.isEmpty()) {
+            mergedPassRuns.add(this.mergeSortedRuns(mergeSortGroup));
+        }
+
+        return mergedPassRuns;
     }
 
     /**
@@ -148,8 +199,20 @@ public class SortOperator extends QueryOperator {
         // Iterator over the records of the relation we want to sort
         Iterator<Record> sourceIterator = getSource().iterator();
 
+        List<Run> sortedRuns = new ArrayList<>();
+
+        while (sourceIterator.hasNext()) {
+            // For sort, it can use the full memory space
+            BacktrackingIterator<Record> backtrackingIterator = QueryOperator.getBlockIterator(sourceIterator, getSchema(), this.numBuffers);
+            sortedRuns.add(this.sortRun(backtrackingIterator));
+        }
+
+        while (sortedRuns.size() != 1) {
+            sortedRuns = this.mergePass(sortedRuns);
+        }
+
         // TODO(proj3_part1): implement
-        return makeRun(); // TODO(proj3_part1): replace this!
+        return sortedRuns.get(0); // TODO(proj3_part1): replace this!
     }
 
     /**

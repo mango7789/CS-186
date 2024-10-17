@@ -69,7 +69,7 @@ public class SortMergeOperator extends JoinOperator {
 
     @Override
     public int estimateIOCost() {
-        //does nothing
+        // does nothing
         return 0;
     }
 
@@ -140,6 +140,42 @@ public class SortMergeOperator extends JoinOperator {
          */
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
+            while (leftIterator.hasNext() || rightIterator.hasNext()) {
+                if (!marked) {
+                    while (compare(leftRecord, rightRecord) < 0 && leftIterator.hasNext()) {
+                        leftRecord = leftIterator.next();
+                    }
+                    while (compare(leftRecord, rightRecord) > 0 && rightIterator.hasNext()) {
+                        rightRecord = rightIterator.next();
+                    }
+                    rightIterator.markPrev();
+                    marked = true;
+                }
+                if (rightRecord != null && compare(leftRecord, rightRecord) == 0) {
+                    Record result = leftRecord.concat(rightRecord);
+                    if (rightIterator.hasNext()) rightRecord = rightIterator.next();
+                    else rightRecord = null;
+                    return result;
+                }
+                else {
+                    rightIterator.reset();
+                    rightRecord = rightIterator.next();
+                    if (leftIterator.hasNext()) leftRecord = leftIterator.next();
+                    else leftRecord = null;
+                    marked = false;
+                }
+            }
+            // Last element of left and right table
+            if (leftRecord != null && rightRecord != null) {
+                if (compare(leftRecord, rightRecord) == 0) {
+                    Record result = leftRecord.concat(rightRecord);
+                    leftRecord = rightRecord = null;
+                    return result;
+                }
+                else {
+                    leftRecord = rightRecord = null;
+                }
+            }
             return null;
         }
 
