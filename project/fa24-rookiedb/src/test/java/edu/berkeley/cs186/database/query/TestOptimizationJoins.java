@@ -205,7 +205,8 @@ public class TestOptimizationJoins {
             QueryOperator finalOperator = query.getFinalOperator();
 
             // Check that the select operator was pushed down
-            assertTrue(finalOperator.toString().contains("\t-> Select t2.int=9"));
+//            assertTrue(finalOperator.toString().contains("\t-> Select t2.int=9"));
+            assertTrue(finalOperator.toString().contains("\t\t-> Index Scan for int=9 on t2"));
         }
     }
 

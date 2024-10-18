@@ -8,6 +8,8 @@ import edu.berkeley.cs186.database.query.join.BNLJOperator;
 import edu.berkeley.cs186.database.query.join.SNLJOperator;
 import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
+import edu.berkeley.cs186.database.table.Table;
+import edu.berkeley.cs186.database.table.stats.TableStats;
 
 import java.util.*;
 
@@ -117,7 +119,7 @@ public class QueryPlan {
         }
         if (result == null)
             throw new IllegalArgumentException("Unknown column `" + column + "`");
-        return  result;
+        return result;
     }
 
     @Override
@@ -244,7 +246,7 @@ public class QueryPlan {
      * @throws RuntimeException a set of projections have already been
      * specified.
      */
-    public void project(String...columnNames) {
+    public void project(String... columnNames) {
         project(Arrays.asList(columnNames));
     }
 
@@ -397,7 +399,7 @@ public class QueryPlan {
      *
      * @param columns the columns to group by
      */
-    public void groupBy(String...columns) {
+    public void groupBy(String... columns) {
         this.groupByColumns = Arrays.asList(columns);
     }
 
@@ -576,7 +578,39 @@ public class QueryPlan {
     public QueryOperator minCostSingleAccess(String table) {
         QueryOperator minOp = new SequentialScanOperator(this.transaction, table);
 
+        Table selectTable = transaction.getTable(table);
+        TableStats tableStats = selectTable.getStats();
+
         // TODO(proj3_part2): implement
+        List<Integer> eligibleIndexColumns = getEligibleIndexColumns(table);
+        int minIOs = tableStats.getNumRecords();
+        int minIndex = -1;
+
+        // Iterate through eligible indices to calculate the IOs
+        for (Integer currIndex : eligibleIndexColumns) {
+            SelectPredicate currPred = this.selectPredicates.get(currIndex);
+
+            PredicateOperator currOp = currPred.operator;
+            DataBox currVal = currPred.value;
+
+            float currSelectively = tableStats.getHistograms().get(currIndex).computeReductionFactor(currOp, currVal);
+            int currIOs = (int) Math.ceil(currSelectively * (tableStats.getNumPages()));
+
+            if (currIOs < minIOs) {
+                minIOs = currIOs;
+                minIndex = currIndex;
+            }
+        }
+
+        // Replace the sequential scan with index scan
+        if (minIndex != -1) {
+            SelectPredicate minPredicate = this.selectPredicates.get(minIndex);
+            minOp = new IndexScanOperator(
+                this.transaction, table, minPredicate.column, minPredicate.operator, minPredicate.value
+            );
+        }
+
+        minOp = addEligibleSelections(minOp, minIndex);
         return minOp;
     }
 
@@ -646,6 +680,33 @@ public class QueryPlan {
         //      calculate the cheapest join with the new table (the one you
         //      fetched an operator for from pass1Map) and the previously joined
         //      tables. Then, update the result map if needed.
+        for (Set<String> tables : prevMap.keySet()) {
+            for (JoinPredicate joinPred : this.joinPredicates) {
+
+                QueryOperator op;
+                Set<String> tablesCopy = new HashSet<>(tables);
+
+                if (tables.contains(joinPred.leftTable) && !tables.contains(joinPred.rightTable)) {
+                    op = pass1Map.get(Set.of(joinPred.rightTable));
+                    tablesCopy.add(joinPred.rightTable);
+                    op = minCostJoinType(prevMap.get(tables), op, joinPred.leftColumn, joinPred.rightColumn);
+                } else if (!tables.contains(joinPred.leftTable) && tables.contains(joinPred.rightTable)) {
+                    op = pass1Map.get(Set.of(joinPred.leftTable));
+                    tablesCopy.add(joinPred.leftTable);
+                    op = minCostJoinType(prevMap.get(tables), op, joinPred.rightColumn, joinPred.leftColumn);
+                } else {
+                    continue;
+                }
+                // Update the optimal operator of a table if the new one is more efficient
+                if (result.containsKey(tablesCopy)) {
+                    if (op.estimateIOCost() < result.get(tablesCopy).estimateIOCost()) {
+                        result.put(tablesCopy, op);
+                    }
+                } else {
+                    result.put(tablesCopy, op);
+                }
+            }
+        }
         return result;
     }
 
@@ -695,7 +756,24 @@ public class QueryPlan {
         // Set the final operator to the lowest cost operator from the last
         // pass, add group by, project, sort and limit operators, and return an
         // iterator over the final operator.
-        return this.executeNaive(); // TODO(proj3_part2): Replace this!
+
+        // Pass 1
+        Map<Set<String>, QueryOperator> pass1Map = new HashMap<>();
+        for (String table : this.tableNames) {
+            pass1Map.put(Set.of(table), minCostSingleAccess(table));
+        }
+        // Pass i
+        Map<Set<String>, QueryOperator> prevMap = new HashMap<>(pass1Map);
+        Map<Set<String>, QueryOperator> result = new HashMap<>();
+
+        do {
+            if (!result.isEmpty()) prevMap = new HashMap<>(result);
+            result = minCostJoins(prevMap, pass1Map);
+        } while (!result.isEmpty());
+
+        this.finalOperator = minCostOperator(prevMap);
+
+        return this.finalOperator.iterator(); // TODO(proj3_part2): Replace this!
     }
 
     // EXECUTE NAIVE ///////////////////////////////////////////////////////////

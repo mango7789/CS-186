@@ -13,3 +13,4 @@
 - Joins
 - Iterators and Relational Algebra
 - Query Optimization: Plan Space
+- Query Optimization: Costs and Search
