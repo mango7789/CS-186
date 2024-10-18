@@ -214,11 +214,6 @@ public class TestSortMergeJoin {
             }
             checkIOs(0);
 
-            while (outputIterator.hasNext()) {
-                numRecords++;
-                outputIterator.next();
-            }
-
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 400 * 400, numRecords);
         }
