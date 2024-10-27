@@ -15,3 +15,5 @@
 - Query Optimization: Plan Space
 - Query Optimization: Costs and Search
 - Transactions & Concurrency I
+- Transactions & Concurrency II
+- Recovery I
