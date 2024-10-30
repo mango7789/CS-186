@@ -17,3 +17,4 @@
 - Transactions & Concurrency I
 - Transactions & Concurrency II
 - Recovery I
+- Recovery II
