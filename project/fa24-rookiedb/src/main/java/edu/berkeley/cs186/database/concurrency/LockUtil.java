@@ -42,7 +42,6 @@ public class LockUtil {
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
         // TODO(proj4_part2): implement
-        return;
     }
 
     // TODO(proj4_part2) add any helper methods you want

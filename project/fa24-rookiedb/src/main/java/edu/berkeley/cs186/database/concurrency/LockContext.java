@@ -238,19 +238,45 @@ public class LockContext {
             throw new NoLockHeldException("There is no lock held at this level!");
         }
 
-        LockType currType = this.lockman.getLockType(transaction, this.name);
+        LockType oldType = this.lockman.getLockType(transaction, this.name);
+        LockType newType = this.backTrack(transaction, oldType, 0);
 
-        for (LockContext child : children.values()) {
-            LockType childType = child.getExplicitLockType(transaction);
-            if (childType == LockType.X) {
-                currType = LockType.X;
-            } else if (childType == LockType.S) {
-                if (currType != LockType.IX && currType != LockType.X) {
-                    currType = LockType.S;
-                }
-            }
-            child.release(transaction);
+        // Escalate intent lock to real lock
+        if (oldType == LockType.IS){
+            newType = LockType.S;
+        } else if (oldType == LockType.IX) {
+            newType = LockType.X;
         }
+
+        if (newType != oldType) {
+            this.lockman.promote(transaction, this.name, newType);
+        }
+    }
+
+    private LockType backTrack(TransactionContext transaction, LockType currType, int depth) {
+        if (this.getNumChildren(transaction) == 0) {
+            if (this.getExplicitLockType(transaction) == LockType.NL) {
+                return currType;
+            }
+            currType = LockContext.updateParent(currType, this.getExplicitLockType(transaction));
+        } else {
+            for (LockContext child : children.values()) {
+                currType = child.backTrack(transaction, currType, depth + 1);
+            }
+        }
+        if (depth != 0) this.release(transaction);
+        return currType;
+    }
+
+    private static LockType updateParent(LockType oldType, LockType newType) {
+        if (newType == LockType.X) {
+            return LockType.X;
+        } else if (newType == LockType.S) {
+            if (oldType != LockType.IX && oldType != LockType.X && oldType != LockType.SIX) {
+                return LockType.S;
+            }
+        }
+        return oldType;
     }
 
     /**
