@@ -18,3 +18,4 @@
 - Transactions & Concurrency II
 - Recovery I
 - Recovery II
+- Parallel Query Processing

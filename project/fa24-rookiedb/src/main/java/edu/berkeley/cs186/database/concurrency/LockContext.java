@@ -238,22 +238,23 @@ public class LockContext {
             throw new NoLockHeldException("There is no lock held at this level!");
         }
 
+        List<ResourceName> releaseNames = new ArrayList<>();
         LockType oldType = this.lockman.getLockType(transaction, this.name);
-        LockType newType = this.backTrack(transaction, oldType, 0);
+        LockType newType = this.backTrack(transaction, oldType, 0, releaseNames);
 
         // Escalate intent lock to real lock
-        if (oldType == LockType.IS){
+        if (oldType == LockType.IS) {
             newType = LockType.S;
         } else if (oldType == LockType.IX) {
             newType = LockType.X;
         }
 
         if (newType != oldType) {
-            this.lockman.promote(transaction, this.name, newType);
+            this.lockman.acquireAndRelease(transaction, this.name, newType, releaseNames);
         }
     }
 
-    private LockType backTrack(TransactionContext transaction, LockType currType, int depth) {
+    private LockType backTrack(TransactionContext transaction, LockType currType, int depth, List<ResourceName> releaseNames) {
         if (this.getNumChildren(transaction) == 0) {
             if (this.getExplicitLockType(transaction) == LockType.NL) {
                 return currType;
@@ -261,10 +262,13 @@ public class LockContext {
             currType = LockContext.updateParent(currType, this.getExplicitLockType(transaction));
         } else {
             for (LockContext child : children.values()) {
-                currType = child.backTrack(transaction, currType, depth + 1);
+                currType = child.backTrack(transaction, currType, depth + 1, releaseNames);
             }
         }
-        if (depth != 0) this.release(transaction);
+        releaseNames.add(this.name);
+        if (this.parent != null) {
+            this.parent.numChildLocks.compute(transaction.getTransNum(), (k, v) -> (v - 1));
+        }
         return currType;
     }
 

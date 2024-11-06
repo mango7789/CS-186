@@ -234,7 +234,7 @@ public class LockManager {
             // Construct the lock request
             List<Lock> releaseLocks = new ArrayList<>();
             for (ResourceName releaseName : releaseNames) {
-                releaseLocks.add(new Lock(releaseName, lockType, transactionNum));
+                releaseLocks.add(new Lock(releaseName, getLockType(transaction, releaseName), transactionNum));
             }
             Lock currLock = new Lock(name, lockType, transactionNum);
             LockRequest lockRequest = new LockRequest(transaction, currLock, releaseLocks);
