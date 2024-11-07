@@ -316,7 +316,7 @@ public class LockManager {
                 throw new NoLockHeldException("");
             }
             for (Lock lock : releaseLocks) {
-                if (lock.name == name) {
+                if (lock.name.equals(name)) {
                     entry.releaseLock(lock);
                 }
             }

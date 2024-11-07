@@ -26,6 +26,7 @@ import edu.berkeley.cs186.database.recovery.ARIESRecoveryManager;
 import edu.berkeley.cs186.database.recovery.DummyRecoveryManager;
 import edu.berkeley.cs186.database.recovery.RecoveryManager;
 import edu.berkeley.cs186.database.table.*;
+import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.stats.TableStats;
 
 import java.io.*;
@@ -931,7 +932,22 @@ public class Database implements AutoCloseable {
         public void close() {
             try {
                 // TODO(proj4_part2)
-                return;
+                // TODO: Need to be refined to ensure that locks in children are released before parent
+                List<Lock> locksToRelease = lockManager.getLocks(this);
+                Collections.reverse(locksToRelease);
+//                while (!locksToRelease.isEmpty()) {
+//                    Lock lock = locksToRelease.remove(0);
+//                    LockContext currContext = LockContext.fromResourceName(lockManager, lock.name);
+//                    if (currContext.getNumChildren(this) == 0) {
+//                        currContext.release(this);
+//                    } else {
+//                        locksToRelease.add(lock);
+//                    }
+//                }
+                for (Lock lock : locksToRelease) {
+                    LockContext currCtx = LockContext.fromResourceName(lockManager, lock.name);
+                    currCtx.release(this);
+                }
             } catch (Exception e) {
                 // There's a chance an error message from your release phase
                 // logic can get suppressed. This guarantees that the stack

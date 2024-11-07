@@ -47,17 +47,24 @@ public class LockUtil {
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
         // TODO(proj4_part2): implement
-        // If the required lock is NL, just do nothing and return
-        if (requestType == LockType.NL) {
+        if (explicitLockType == requestType) {
             return;
+        }
+        // If the required lock is NL, release all locks in children
+        else if (requestType == LockType.NL) {
+            lockContext.escalate(transaction);
+            lockContext.release(transaction);
         }
         // Request a shared lock
         else if (requestType == LockType.S) {
             // The parent of the lock is valid, just need to acquire in current lock
             if (effectiveLockType == LockType.S || effectiveLockType == LockType.X) {
+                // Former lock is IS, need to escalate it to S
                 if (explicitLockType == LockType.IS) {
                    lockContext.escalate(transaction);
-                } else if (explicitLockType == LockType.IX) {
+                }
+                // Former lock is IX, release all locks in children and promote it to SIX
+                else if (explicitLockType == LockType.IX) {
                     List<ResourceName> releaseResourceNames = new ArrayList<>();
                     releaseResourceNames.add(lockContext.name);
                     for (LockContext child : lockContext.children.values()) {
@@ -67,12 +74,16 @@ public class LockUtil {
                         }
                     }
                     lockContext.lockman.acquireAndRelease(transaction, lockContext.name, LockType.SIX, releaseResourceNames);
-                } else if (explicitLockType == LockType.NL) {
+                }
+                // No lock held currently, just need to acquire S lock
+                else if (explicitLockType == LockType.NL) {
                     lockContext.lockman.acquire(transaction, lockContext.name, requestType);
                 }
             }
+            // There is no lock held in parent, need to traverse back to find all invalid parents
             else {
-                // There is no lock held in parent
+                // Since the `IS` is the "smallest" lock one can acquire, we just need to
+                // check "no lock held" here and any other type of lock held by parent is valid
                 while (parentContext != null && parentContext.getExplicitLockType(transaction) == LockType.NL) {
                     contextToLock.add(parentContext);
                     parentContext = parentContext.parentContext();
@@ -89,13 +100,17 @@ public class LockUtil {
         }
         // Request a exclusive lock
         else {
+            // Explicit lock type can only be NL, IX, X
             if (effectiveLockType == LockType.X) {
                 if (explicitLockType == LockType.IX) {
                     lockContext.escalate(transaction);
-                } else {
-                    lockContext.lockman.acquireAndRelease(transaction, lockContext.name, requestType, Collections.singletonList(lockContext.name));
+                } else if (explicitLockType == LockType.NL) {
+                    lockContext.lockman.acquire(transaction, lockContext.name, LockType.X);
                 }
-            } else if (effectiveLockType == LockType.S) {
+            }
+            // Lock in parents can ensure that we obtain a S lock in current context,
+            // but it's not enough, and we need to promote it to IX
+            else if (effectiveLockType == LockType.S) {
                 while (parentContext != null && parentContext.getExplicitLockType(transaction) != LockType.IX) {
                     contextToLock.add(parentContext);
                     parentContext = parentContext.parentContext();
@@ -103,7 +118,11 @@ public class LockUtil {
                 if (!contextToLock.isEmpty()) {
                     Collections.reverse(contextToLock);
                     for (LockContext context : contextToLock) {
-                        context.promote(transaction, LockType.IX);
+                        if (context.getExplicitLockType(transaction) != LockType.S) {
+                            context.promote(transaction, LockType.IX);
+                        } else {
+                            context.lockman.acquireAndRelease(transaction, context.name, LockType.IX, Collections.singletonList(context.name));
+                        }
                     }
                 }
                 if (explicitLockType == LockType.NL) {
@@ -111,19 +130,29 @@ public class LockUtil {
                 } else {
                     lockContext.promote(transaction, requestType);
                 }
-            } else {
-                while (parentContext != null && parentContext.getExplicitLockType(transaction) == LockType.NL) {
+            }
+            // No lock held in parent context
+            else {
+                // Parent context can hold IS | S | SIX, so we need to check and promote if it exists
+                while (parentContext != null && parentContext.getExplicitLockType(transaction) != LockType.IX) {
                     contextToLock.add(parentContext);
                     parentContext = parentContext.parentContext();
                 }
                 if (!contextToLock.isEmpty()) {
                     Collections.reverse(contextToLock);
                     for (LockContext context : contextToLock) {
-                        context.acquire(transaction, LockType.IX);
+                        if (context.getExplicitLockType(transaction) == LockType.NL) {
+                            context.acquire(transaction, LockType.IX);
+                        } else {
+                            context.promote(transaction, LockType.IX);
+                        }
                     }
                 }
-                // Acquire the lock in desired resource
-                lockContext.acquire(transaction, requestType);
+                if (explicitLockType == LockType.NL) {
+                    lockContext.acquire(transaction, requestType);
+                } else {
+                    lockContext.promote(transaction, requestType);
+                }
             }
         }
     }

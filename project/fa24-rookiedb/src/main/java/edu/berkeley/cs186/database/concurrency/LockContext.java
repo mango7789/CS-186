@@ -304,7 +304,12 @@ public class LockContext {
         // TODO(proj4_part2): implement
         LockType currType = this.getExplicitLockType(transaction);
         LockContext currCtx = this;
-        boolean parentNL = this.parent.getExplicitLockType(transaction) == LockType.NL;
+        boolean parentNL;
+        if (this.parent == null) {
+            parentNL = true;
+        } else {
+            parentNL = this.parent.getExplicitLockType(transaction) == LockType.NL;
+        }
         boolean parentIntent = false;
 
         do {
